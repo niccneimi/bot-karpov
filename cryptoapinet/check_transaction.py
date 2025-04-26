@@ -39,5 +39,3 @@ def request_transaction_info(address: str):
     except Exception as err:
         print(f"Error: {err}")
         return None
-
-print(request_transaction_info("0xaaaa1df1ca2a488ba15ff67b2e937f9759f478e2"))

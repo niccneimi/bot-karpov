@@ -3,14 +3,16 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart,Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
-import asyncio, logging
+from decimal import Decimal
+import asyncio, logging, json
 from FSM import *
 from config import *
 from markups import *
 from utils import *
 from services.promocode import check_promocode
-from cryptoapinet.services import get_qr_code_image
+from cryptoapinet.services import get_qr_code_image, get_payment_address
 from cryptoapinet.check_transaction import request_transaction_info
+from cryptoapinet.utils import get_currency_cryptoapinet_by_token
 from database import Database
 
 bot = Bot(TOKEN)
@@ -26,13 +28,23 @@ async def waiting_for_promocode(message: Message, state: FSMContext):
     if check_result:
         pass
     else:
-        data = state.get_data()
+        data = await state.get_data()
         await message.answer(language['promocode_does_not_exist'])
-        qr_image = get_qr_code_image(WALLET_ADDRESS)
+        address = data.get('payment_address')
+        currency = data.get('valute')
+        
+        qr_image = get_qr_code_image(address=address)
         await bot.send_photo(message.from_user.id, BufferedInputFile(qr_image.getvalue(), filename="qr.png"))
-        await message.answer(f"<code>{WALLET_ADDRESS}</code>", parse_mode="HTML")
-        await message.answer(language['total_amount_payment'].format(sum=data['price'],currency=data['valute']), reply_markup=get_check_pay_kb(language))
-        await state.clear()
+        await message.answer(f"<code>{address}</code>", parse_mode="HTML")
+        await message.answer(
+            language['total_amount_payment'].format(
+                summ=data['price'],
+                currency=currency.upper()
+            ), 
+            reply_markup=get_check_pay_kb(language, currency, data['price']), 
+            parse_mode="HTML"
+        )
+    await state.clear()
 
 ##############################COMANDS################################
 @dp.message(CommandStart())
@@ -72,17 +84,47 @@ async def buy_command(message: Message, state: FSMContext):
 async def no_promocode(callback_query: CallbackQuery, state: FSMContext):
     language = LANG[await db.get_lang(callback_query.from_user.id)]
     data = await state.get_data()
-    qr_image = get_qr_code_image(WALLET_ADDRESS)
+    address = data.get('payment_address')
+    currency = data.get('valute')
+    
+    qr_image = get_qr_code_image(address=address)
     await bot.send_photo(callback_query.from_user.id, BufferedInputFile(qr_image.getvalue(), filename="qr.png"))
-    await callback_query.message.answer(f"<code>{WALLET_ADDRESS}</code>", parse_mode="HTML")
-    await callback_query.message.answer(language['total_amount_payment'].format(summ=data['price'],currency=data['valute'].upper()), reply_markup=get_check_pay_kb(language), parse_mode="HTML")
+    await callback_query.message.answer(f"<code>{address}</code>", parse_mode="HTML")
+    await callback_query.message.answer(
+        language['total_amount_payment'].format(
+            summ=data['price'],
+            currency=currency.upper()
+        ), 
+        reply_markup=get_check_pay_kb(language, currency, data['price']), 
+        parse_mode="HTML"
+    )
     await state.clear()
 
 @dp.callback_query(lambda c: c.data.startswith("valute:"),buyConnection.selectValute)
 async def choose_value(callback_query: CallbackQuery, state: FSMContext):
     language = LANG[await db.get_lang(callback_query.from_user.id)]
-    await state.update_data(valute=callback_query.data.split(":")[1])
+    currency = callback_query.data.split(":")[1].upper()
+    user_id = callback_query.from_user.id
+    await state.update_data(valute=currency)
+    
+    address_data = await db.get_address_by_user_and_token(user_id, currency)
+    if not address_data:
+        await db.add_crypto_address(
+            user_id=user_id,
+            token=currency,
+            standart='BEP20',
+            result='pending',
+            address_type='default'
+        )
+        address_data = await db.get_address_by_user_and_token(user_id, currency)
+
+    if not address_data.get('address'):
+        address = get_payment_address(address_data['id'], currency)
+        await db.update_crypto_address(user_id, address, currency)
+    else:
+        address = address_data['address']    
     await callback_query.message.answer(language['promocode_question'], reply_markup=get_no_promo_kb(language))
+    await state.update_data(payment_address=address)
     await state.set_state(buyConnection.checkPromo)
 
 
@@ -165,10 +207,60 @@ async def connect_by_inline_button(callback_query: CallbackQuery, state: FSMCont
         probniy = ''
     await callback_query.message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
 
-@dp.callback_query(lambda c: c.data == "check_payment")
+@dp.callback_query(lambda c: c.data.startswith("check_payment"))
 async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext):
-    #TODO Проверка платежа после нажатия проверить оплату
-    pass
+    currency = callback_query.data.split(":")[1]
+    price = callback_query.data.split(":")[2]
+    user_id = callback_query.from_user.id
+    language = LANG[await db.get_lang(user_id)]
+    
+    address_data = await db.get_address_by_user_and_token(user_id, currency)
+
+    address = address_data['address']
+    confirmations, tx_data = request_transaction_info(address)
+    
+    if tx_data is not None:
+        existing_tx = await db.get_transaction_by_txid_and_address(tx_data['hash'], address)
+        token = get_currency_cryptoapinet_by_token(tx_data['tokenSymbol'])
+        
+        if confirmations >= 3 and not existing_tx and currency == token:
+            tx_amount = Decimal(tx_data['value']) / Decimal((10 ** int(tx_data['tokenDecimal'])))
+            tx_amount = round(Decimal(tx_amount), 8)
+
+            try:
+                await db.add_transaction(
+                    txid=tx_data['hash'],
+                    transaction_type="in",
+                    confirmations=confirmations,
+                    token=token,
+                    amount=str(tx_amount),
+                    from_address=tx_data['from'],
+                    standart="BEP20",
+                    user_crypto_address_id=address_data['id'],
+                    address=tx_data['to'],
+                    paid=True,
+                    status="Paid"
+                )
+                if Decimal(price) <= Decimal(tx_amount):
+                    await db.update_order_status(
+                        user_id=user_id,
+                        paid=True,
+                        extra={
+                            "hash_tx": tx_data['hash']
+                        }
+                    )
+                    
+                    await callback_query.message.answer(language['tx_how_install_after_pay'])
+                    await state.clear()
+                    return
+                    
+            except Exception as ex:
+                logging.error(f"Error processing payment for user {user_id}: {ex}")
+                
+    await callback_query.message.answer(
+        language['transaction_not_found'],
+        reply_markup=get_check_pay_kb(language, currency, price)
+    )
 #####################################################################
 
 

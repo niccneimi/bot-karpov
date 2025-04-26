@@ -164,10 +164,10 @@ def get_select_valute_kb():
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="USDT", callback_data="valute:usdt")
+                InlineKeyboardButton(text="USDT", callback_data="valute:USDT")
             ],
             [
-                InlineKeyboardButton(text="DEXNET (-20%)", callback_data="valute:dexnet")
+                InlineKeyboardButton(text="DEXNET (-20%)", callback_data="valute:DEXNET")
             ]
         ]
     )
@@ -183,11 +183,11 @@ def get_no_promo_kb(language):
     )
     return kb
 
-def get_check_pay_kb(language):
+def get_check_pay_kb(language, currency, price):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=language['but_check_pay'], callback_data="check_payment")
+                InlineKeyboardButton(text=language['but_check_pay'], callback_data=f"check_payment:{currency}:{price}")
             ]
         ]
     )
