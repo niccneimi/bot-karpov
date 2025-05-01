@@ -14,6 +14,7 @@ from cryptoapinet.services import get_qr_code_image, get_payment_address
 from cryptoapinet.check_transaction import request_transaction_info
 from cryptoapinet.utils import get_currency_cryptoapinet_by_token
 from database import Database
+import io
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
@@ -150,8 +151,36 @@ async def message_handler(message: Message, state: FSMContext):
 
     
     elif text == language['but_my_keys']:
-        #TODO Добавить получение активных ключей
-        await message.answer(language['tx_no_activ_keys'])
+        keys = await db.get_all_client_keys(str(message.from_user.id))
+        if len(keys) != 0:
+            for key, value in keys.items():
+                with open(CLIENT_CONFIG_PATH) as config:
+                    configString = json.load(config)
+                    for client in value:
+                        getClient = {
+                            "address": client['host'],
+                            "port": 443,
+                            "users": [
+                                {
+                                    "id": key,
+                                    "encryption": "none",
+                                    "flow": "xtls-rprx-vision"
+                                }
+                            ]
+                        }
+                        configString['outbounds'][0]['settings']['vnext'].append(getClient)
+                resultString = json.dumps(configString, indent=4).encode('utf-8')
+                buffer = io.BytesIO(resultString)
+                buffer.seek(0)
+
+                file = BufferedInputFile(
+                    file=buffer.getvalue(),
+                    filename=f"config_{key}.json"
+                )
+                await message.answer_document(file, caption=f'key {key}')   
+
+        else:
+            await message.answer(language['tx_no_activ_keys'])
     elif text == language['but_change_language']: 
         await message.answer(language['tx_change_language'], reply_markup=get_languages_kb())
     elif text == language['but_desription'].format(name_config=NAME_VPN_CONFIG):
@@ -251,6 +280,9 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                     )
                     
                     await callback_query.message.answer(language['tx_how_install_after_pay'])
+
+                    #TODO выдавать файл или ссылку для подключения
+
                     await state.clear()
                     return
                     

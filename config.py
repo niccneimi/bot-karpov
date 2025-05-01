@@ -15,6 +15,8 @@ DATABASE_NAME = "vpnbotdatabase"
 DATABASE_USERNAME = "niccneimivpn"
 DATABASE_PASSWORD = "securepassword"
 
+CLIENT_CONFIG_PATH = "/home/niccneimi/Documents/FREELANCE/vpnbotlord_karpov13/bot/client_config_template.json"
+
 LANG_FILE = 'bot/lang.yml'
 
 with open(LANG_FILE, 'r', encoding='utf-8') as f:

@@ -1,0 +1,20 @@
+{
+    "outbounds": [
+        {
+            "protocol": "vless",
+            "settings": {
+                "vnext": [
+                ]
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "security": "reality",
+                "realitySettings": {
+                    "serverName": "www.microsoft.com",
+                    "fingerprint": "chrome",
+                    "shortId": "f508ef93"
+                }
+            }
+        }
+    ]
+}

@@ -1,6 +1,10 @@
 import asyncpg
 from typing import Union
 import json
+from typing import Dict, List, Union
+
+def parse_json_str(value: Union[str, list]) -> list:
+    return json.loads(value) if isinstance(value, str) else value
 
 class Database:
     def __init__(self, dsn: str):
@@ -147,7 +151,6 @@ class Database:
             await conn.execute(sql, paid, json.dumps(extra), user_id)
 
     async def add_crypto_address(self, user_id: int, token: str, standart: str, result: str, address_type: str):
-        """Добавляет новый крипто-адрес для пользователя"""
         sql = """
         INSERT INTO crypto_addresses (user_id, token, standart, result, address_type)
         VALUES ($1, $2, $3, $4, $5)
@@ -157,7 +160,6 @@ class Database:
             return await conn.fetchval(sql, user_id, token, standart, result, address_type)
 
     async def update_crypto_address(self, user_id: int, address: str, token: str):
-        """Обновляет адрес для пользователя и токена"""
         sql = """
         UPDATE crypto_addresses 
         SET address = $1, result = 'success'
@@ -165,3 +167,31 @@ class Database:
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql, address, user_id, token)
+
+    async def get_all_client_keys(self, telegram_id):
+        sql = '''
+        SELECT 
+            uuid,
+            json_agg(
+                json_build_object(
+                    'id', id,
+                    'telegram_id', telegram_id,
+                    'host', host,
+                    'email', email,
+                    'public_key', public_key,
+                    'created_at', created_at
+                )
+            ) AS records
+        FROM clients_as_keys
+        WHERE telegram_id = $1
+        GROUP BY uuid;
+        '''
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(sql, telegram_id)
+        return {
+            str(row['uuid']): parse_json_str(row['records']) 
+            for row in rows
+        }
+
+        
+        
