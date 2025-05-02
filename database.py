@@ -66,6 +66,30 @@ class Database:
             extra JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS servers (
+            id SERIAL PRIMARY KEY,
+            host VARCHAR(255) UNIQUE,
+            port INTEGER DEFAULT 22,
+            username VARCHAR(255),
+            password VARCHAR(255),
+            location VARCHAR(255),
+            public_key VARCHAR(255),
+            private_key VARCHAR(255),
+            clients_on_server INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created INTEGER DEFAULT 0
+        );
+                        
+        CREATE TABLE IF NOT EXISTS clients_as_keys (
+            id SERIAL PRIMARY KEY,
+            telegram_id VARCHAR(255),
+            host VARCHAR(255),
+            uuid VARCHAR(255),
+            email VARCHAR(255),
+            public_key VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );   
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql)
@@ -193,5 +217,78 @@ class Database:
             for row in rows
         }
 
+    async def add_server_to_creating(self, host, port, username, password, location):
+        async with self._pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO servers (host, port, username, password, location)
+                VALUES ($1, $2, $3, $4, $5)
+            ''', host, port, username, password, location)
+
+    async def final_add_server(self, host, public_key, private_key):
+        async with self._pool.acquire() as conn:
+            await conn.execute('''
+                UPDATE servers 
+                SET public_key = $1, 
+                    private_key = $2, 
+                    created = 1 
+                WHERE host = $3
+            ''', public_key, private_key, host)
+
+    async def get_all_servers(self):
+        async with self._pool.acquire() as conn:
+            return await conn.fetch('SELECT * FROM servers WHERE created = 1')
         
+    async def server_exists(self, host: int) -> bool:
+        sql = "SELECT EXISTS(SELECT 1 FROM servers WHERE host = $1)"
+        async with self._pool.acquire() as conn:
+            return await conn.fetchval(sql, host)
+
+    async def get_servers_with_uniqe_locations(self):
+        sql = """
+        SELECT *
+        FROM (
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY location ORDER BY clients_on_server ASC, id) as rn
+            FROM servers WHERE created = 1
+        ) t
+        WHERE t.rn = 1
+        """
+        async with self._pool.acquire() as conn:
+            return await conn.fetch(sql)
+        
+    async def add_clientkey(self, telegram_id, host, uuid, email, public_key):
+        async with self._pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO clients_as_keys (telegram_id, host, uuid, email, public_key)
+                VALUES ($1, $2, $3, $4, $5)
+            ''', telegram_id, host, uuid, email, public_key)
+    
+    async def get_clientkeys_by_uuid(self, uuid):
+        async with self._pool.acquire() as conn:
+            return await conn.fetch('SELECT * FROM clients_as_keys WHERE uuid = $1', uuid)
+
+    async def get_all_host_keys(self, host):
+        sql = '''
+        SELECT 
+            uuid,
+            json_agg(
+                json_build_object(
+                    'id', id,
+                    'telegram_id', telegram_id,
+                    'host', host,
+                    'email', email,
+                    'public_key', public_key,
+                    'created_at', created_at
+                )
+            ) AS records
+        FROM clients_as_keys
+        WHERE host = $1
+        GROUP BY uuid;
+        '''
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(sql, host)
+        return {
+            str(row['uuid']): parse_json_str(row['records']) 
+            for row in rows
+        }
         
