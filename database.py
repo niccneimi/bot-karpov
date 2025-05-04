@@ -88,6 +88,7 @@ class Database:
             uuid VARCHAR(255),
             email VARCHAR(255),
             public_key VARCHAR(255),
+            online_count INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );   
         """
@@ -173,6 +174,13 @@ class Database:
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql, paid, json.dumps(extra), user_id)
+    
+    async def update_clients_on_server(self, host):
+        sql = """
+        UPDATE servers SET clients_on_server += 1 WHERE host = $1
+        """
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, host)
 
     async def add_crypto_address(self, user_id: int, token: str, standart: str, result: str, address_type: str):
         sql = """
