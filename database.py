@@ -91,6 +91,7 @@ class Database:
             online_count INTEGER DEFAULT 0,
             online_ips VARCHAR(255),
             expiration_date INTEGER,
+            deleted INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );   
         """
@@ -177,12 +178,16 @@ class Database:
         async with self._pool.acquire() as conn:
             await conn.execute(sql, paid, json.dumps(extra), user_id)
     
-    async def update_clients_on_server(self, host):
+    async def update_clients_on_server(self, host, value):
         sql = """
-        UPDATE servers SET clients_on_server = clients_on_server + 1 WHERE host = $1
+        UPDATE servers SET clients_on_server = clients_on_server + $1 WHERE host = $2
         """
         async with self._pool.acquire() as conn:
-            await conn.execute(sql, host)
+            await conn.execute(sql, value, host)  
+        if value < 0:
+            sql = """UPDATE clients_as_keys SET deleted = 1 WHERE host = $1 AND expiration_date < EXTRACT(EPOCH FROM NOW())::bigint"""
+            async with self._pool.acquire() as conn:
+                await conn.execute(sql, host)  
 
     async def add_crypto_address(self, user_id: int, token: str, standart: str, result: str, address_type: str):
         sql = """
@@ -217,7 +222,7 @@ class Database:
                 )
             ) AS records
         FROM clients_as_keys
-        WHERE telegram_id = $1
+        WHERE telegram_id = $1 AND expiration_date > EXTRACT(EPOCH FROM NOW())::bigint
         GROUP BY uuid;
         '''
         async with self._pool.acquire() as conn:
@@ -275,7 +280,7 @@ class Database:
     
     async def get_clientkeys_by_uuid(self, uuid):
         async with self._pool.acquire() as conn:
-            return await conn.fetch('SELECT * FROM clients_as_keys WHERE uuid = $1', uuid)
+            return await conn.fetch('SELECT * FROM clients_as_keys WHERE uuid = $1 AND expiration_date > EXTRACT(EPOCH FROM NOW())::bigint', uuid)
 
     async def get_all_host_keys(self, host):
         sql = '''
@@ -292,7 +297,7 @@ class Database:
                 )
             ) AS records
         FROM clients_as_keys
-        WHERE host = $1
+        WHERE host = $1 AND expiration_date > EXTRACT(EPOCH FROM NOW())::bigint AND deleted = 0
         GROUP BY uuid;
         '''
         async with self._pool.acquire() as conn:
@@ -308,3 +313,33 @@ class Database:
         sql = """UPDATE clients_as_keys SET online_count = $1, online_ips = $2 WHERE host = $3 AND uuid = $4"""
         async with self._pool.acquire() as conn:
             await conn.execute(sql, online_count, ips_string, host, uuid)
+        
+    async def get_private_key_by_host(self, host):
+        sql = """SELECT private_key FROM servers WHERE host = $1"""
+        async with self._pool.acquire() as conn:
+            return await conn.fetch(sql, host)
+        
+    async def get_keys_by_host_including_expired(self, host):
+        sql = '''
+        SELECT 
+            uuid,
+            json_agg(
+                json_build_object(
+                    'id', id,
+                    'telegram_id', telegram_id,
+                    'host', host,
+                    'email', email,
+                    'public_key', public_key,
+                    'created_at', created_at
+                )
+            ) AS records
+        FROM clients_as_keys
+        WHERE host = $1 AND deleted = 0
+        GROUP BY uuid;
+        '''
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(sql, host)
+        return {
+            str(row['uuid']): parse_json_str(row['records']) 
+            for row in rows
+        }
