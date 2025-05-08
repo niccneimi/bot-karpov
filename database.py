@@ -89,6 +89,8 @@ class Database:
             email VARCHAR(255),
             public_key VARCHAR(255),
             online_count INTEGER DEFAULT 0,
+            online_ips VARCHAR(255),
+            expiration_date INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );   
         """
@@ -177,7 +179,7 @@ class Database:
     
     async def update_clients_on_server(self, host):
         sql = """
-        UPDATE servers SET clients_on_server += 1 WHERE host = $1
+        UPDATE servers SET clients_on_server = clients_on_server + 1 WHERE host = $1
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql, host)
@@ -264,12 +266,12 @@ class Database:
         async with self._pool.acquire() as conn:
             return await conn.fetch(sql)
         
-    async def add_clientkey(self, telegram_id, host, uuid, email, public_key):
+    async def add_clientkey(self, telegram_id, host, uuid, email, public_key, expiration_date):
         async with self._pool.acquire() as conn:
             await conn.execute('''
-                INSERT INTO clients_as_keys (telegram_id, host, uuid, email, public_key)
-                VALUES ($1, $2, $3, $4, $5)
-            ''', telegram_id, host, uuid, email, public_key)
+                INSERT INTO clients_as_keys (telegram_id, host, uuid, email, public_key, expiration_date)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            ''', telegram_id, host, uuid, email, public_key, expiration_date)
     
     async def get_clientkeys_by_uuid(self, uuid):
         async with self._pool.acquire() as conn:
@@ -300,3 +302,9 @@ class Database:
             for row in rows
         }
         
+    async def update_online_datas(self, ips, host, uuid):
+        online_count = len(ips)
+        ips_string = ':'.join(ips)
+        sql = """UPDATE clients_as_keys SET online_count = $1, online_ips = $2 WHERE host = $3 AND uuid = $4"""
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, online_count, ips_string, host, uuid)

@@ -14,7 +14,7 @@ from cryptoapinet.services import get_qr_code_image, get_payment_address
 from cryptoapinet.check_transaction import request_transaction_info
 from cryptoapinet.utils import get_currency_cryptoapinet_by_token
 from database import Database
-import io
+import requests, datetime
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
@@ -76,6 +76,16 @@ async def buy_command(message: Message, state: FSMContext):
     else:
         probniy = ''
     await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+
+@dp.message(Command("test_admin_add_client"))
+async def test(message: Message):
+    days_to_add = PRICE_TO_DAYS_DICT[str(5)]
+    data = {
+        "telegram_id": str(message.from_user.id),
+        "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
+    }
+    create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
+    print(create_user.content)
 
 # #####################################################################
 
@@ -144,41 +154,16 @@ async def message_handler(message: Message, state: FSMContext):
         await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
     elif text in [f"{language['but_1_month']} - 5.0$", f"{language['but_3_month']} - 12.0$", f"{language['but_6_month']} - 22.0$", f"{language['but_12_month']} - 40.0$"]:
         tmp_msg = await message.answer(language['tx_wait'],reply_markup=get_but_main_kb(language))
-        await bot.delete_message(message.from_user.id, tmp_msg.message_id)
         await message.answer(language['tx_select_currency'], reply_markup=get_select_valute_kb())
         await state.set_state(buyConnection.selectValute)
         await state.update_data(price=get_price_dict(language, text))
-
-    
+    elif text == language['but_test_key']:
+        pass
     elif text == language['but_my_keys']:
         keys = await db.get_all_client_keys(str(message.from_user.id))
         if len(keys) != 0:
             for key, value in keys.items():
-                with open(CLIENT_CONFIG_PATH) as config:
-                    configString = json.load(config)
-                    for client in value:
-                        getClient = {
-                            "address": client['host'],
-                            "port": 443,
-                            "users": [
-                                {
-                                    "id": key,
-                                    "encryption": "none",
-                                    "flow": "xtls-rprx-vision"
-                                }
-                            ]
-                        }
-                        configString['outbounds'][0]['settings']['vnext'].append(getClient)
-                resultString = json.dumps(configString, indent=4).encode('utf-8')
-                buffer = io.BytesIO(resultString)
-                buffer.seek(0)
-
-                file = BufferedInputFile(
-                    file=buffer.getvalue(),
-                    filename=f"config_{key}.json"
-                )
-                await message.answer_document(file, caption=f'key {key}')   
-
+                await message.answer(f"http://91.84.111.102:8000/sub/{message.from_user.id}--{key}")
         else:
             await message.answer(language['tx_no_activ_keys'])
     elif text == language['but_change_language']: 
@@ -281,7 +266,12 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                     
                     await callback_query.message.answer(language['tx_how_install_after_pay'])
 
-                    #TODO выдавать файл или ссылку для подключения
+                    days_to_add = PRICE_TO_DAYS_DICT[str(price)]
+                    data = {
+                        "telegram_id": str(callback_query.from_user.id),
+                        "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
+                    }
+                    create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
 
                     await state.clear()
                     return
