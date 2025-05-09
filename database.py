@@ -98,6 +98,11 @@ class Database:
         async with self._pool.acquire() as conn:
             await conn.execute(sql)
 
+    async def change_free_trial(self, user_id: int) -> None:
+        sql = "UPDATE users SET free_trial_used = 1 WHERE user_id = $1"
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, user_id)
+
     async def add_user(self, user_id: int) -> None:
         sql = "INSERT INTO users (user_id) VALUES ($1) ON CONFLICT DO NOTHING"
         async with self._pool.acquire() as conn:

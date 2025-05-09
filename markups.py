@@ -1,36 +1,44 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from config import *
 
-def get_start_1_kb(language):
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text=language['but_connect']),
-                KeyboardButton(text=language['but_my_keys']),
-            ],
-            [
-                KeyboardButton(text=language['but_desription'].format(name_config=NAME_VPN_CONFIG))
-            ],
-            [
-                KeyboardButton(text=language['but_change_language']),
-                KeyboardButton(text=language['but_help'])
-            ]
+def get_start_1_kb(language, free_trial_used):
+    keyboard=[
+        [
+            KeyboardButton(text=language['but_connect']),
+            KeyboardButton(text=language['but_my_keys']),
         ],
+        [
+            KeyboardButton(text=language['but_desription'].format(name_config=NAME_VPN_CONFIG))
+        ],
+        [
+            KeyboardButton(text=language['but_change_language']),
+            KeyboardButton(text=language['but_help'])
+        ]
+    ]
+    if not free_trial_used:
+        but_test_key = [KeyboardButton(text=language['but_test_key'])]
+        keyboard.insert(0, but_test_key)
+    kb = ReplyKeyboardMarkup(
+        keyboard=keyboard,
         resize_keyboard=True,
         selective=True
     )
     return kb
 
-def get_start_2_kb(language):
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text=language['but_connect'], callback_data="vpn_connect")
-            ],
-            [
-                InlineKeyboardButton(text=language['but_desription'].format(name_config=NAME_VPN_CONFIG), callback_data="bot_description")
-            ]
+def get_start_2_kb(language, free_trial_used):
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text=language['but_connect'], callback_data="vpn_connect")
+        ],
+        [
+            InlineKeyboardButton(text=language['but_desription'].format(name_config=NAME_VPN_CONFIG), callback_data="bot_description")
         ]
+    ]
+    if not free_trial_used:
+        but_test_key = [InlineKeyboardButton(text=language['but_test_key'], callback_data="give_test_key")]
+        inline_keyboard.insert(0, but_test_key)
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=inline_keyboard
     )
     return kb
 

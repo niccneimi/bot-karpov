@@ -55,11 +55,11 @@ async def start(message: Message, state: FSMContext):
         language = LANG[await db.get_lang(message.from_user.id)]
         await message.answer(language['tx_change_language'], reply_markup=get_languages_kb())
     language = LANG[await db.get_lang(message.from_user.id)]
-    await message.answer(language['tx_hello'].format(name=message.from_user.first_name), reply_markup=get_start_1_kb(language))
+    await message.answer(language['tx_hello'].format(name=message.from_user.first_name), reply_markup=get_start_1_kb(language, await db.is_free_trial_used(message.from_user.id)))
     await message.answer(language['tx_start'].format(name_config=NAME_VPN_CONFIG, 
                                                      but_1=language['but_connect'], 
                                                      but_2=language['but_desription'].format(name_config=NAME_VPN_CONFIG)), 
-                                                     reply_markup=get_start_2_kb(language), 
+                                                     reply_markup=get_start_2_kb(language, await db.is_free_trial_used(message.from_user.id)), 
                                                      parse_mode='HTML')
     await state.clear()
 
@@ -152,13 +152,30 @@ async def message_handler(message: Message, state: FSMContext):
         else:
             probniy = ''
         await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+
     elif text in [f"{language['but_1_month']} - 5.0$", f"{language['but_3_month']} - 12.0$", f"{language['but_6_month']} - 22.0$", f"{language['but_12_month']} - 40.0$"]:
         tmp_msg = await message.answer(language['tx_wait'],reply_markup=get_but_main_kb(language))
         await message.answer(language['tx_select_currency'], reply_markup=get_select_valute_kb())
         await state.set_state(buyConnection.selectValute)
         await state.update_data(price=get_price_dict(language, text))
+
     elif text == language['but_test_key']:
-        pass
+        if not await db.is_free_trial_used(message.from_user.id):
+            days_to_add = 7
+            data = {
+                "telegram_id": str(message.from_user.id),
+                "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
+            }
+            create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
+            if create_user.status_code == 200:
+                await db.change_free_trial(message.from_user.id)
+                await message.answer(language['tx_how_install_after_pay'])
+                await message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(message.from_user.id)))
+            else:
+                await message.answer('Sorry! Something gone wrong!')
+        else:
+            return
+        
     elif text == language['but_my_keys']:
         keys = await db.get_all_client_keys(str(message.from_user.id))
         if len(keys) != 0:
@@ -166,30 +183,37 @@ async def message_handler(message: Message, state: FSMContext):
                 await message.answer(f"http://91.84.111.102:8000/sub/{message.from_user.id}--{key}")
         else:
             await message.answer(language['tx_no_activ_keys'])
+
     elif text == language['but_change_language']: 
         await message.answer(language['tx_change_language'], reply_markup=get_languages_kb())
+
     elif text == language['but_desription'].format(name_config=NAME_VPN_CONFIG):
         await message.answer(language['tx_description'])
         await message.answer(language['tx_description_connect'].format(days=COUNT_DAYS_TRIAL,dney_text=await dney(language, COUNT_DAYS_TRIAL), nick_help=NICK_HELP),reply_markup=get_about_connect_kb(language))
+    
     elif text == language['but_help']:
         await message.answer(language['tx_help'].format(name=message.from_user.first_name), reply_markup=get_help_kb(language))
+    
     elif text == language['but_main']:
         await state.clear()
-        await message.answer(language['tx_hello'].format(name=message.from_user.first_name), reply_markup=get_start_1_kb(language))
+        await message.answer(language['tx_hello'].format(name=message.from_user.first_name), reply_markup=get_start_1_kb(language, await db.is_free_trial_used(message.from_user.id)))
         await message.answer(language['tx_start'].format(name_config=NAME_VPN_CONFIG, 
                                                         but_1=language['but_connect'], 
                                                         but_2=language['but_desription'].format(name_config=NAME_VPN_CONFIG)), 
-                                                        reply_markup=get_start_2_kb(language), 
+                                                        reply_markup=get_start_2_kb(language, await db.is_free_trial_used(message.from_user.id)), 
                                                         parse_mode='HTML')
         
     # Обработка команд после нажатия "🛟Помощь"
     elif text == language['but_how_podkl']:
         await message.answer(language['tx_how_install'].format(name=message.from_user.first_name), reply_markup=get_devices_kb(language))
         await message.answer(language['tx_how_install_info'].format(but=language['but_connect']), reply_markup=get_connect_kb(language), parse_mode='HTML')
+    
     elif text == language['but_back_help']:
         await message.answer(language['tx_help'].format(name=message.from_user.first_name), reply_markup=get_help_kb(language))
+    
     elif text == language['but_no_work_vpn']:
         await message.answer(language['tx_not_work_vpn'].format(name=message.from_user.first_name))
+    
     elif text == language['but_manager']:
         await message.answer(language['tx_support_button'], reply_markup=get_contact_us_kb(language))
     
@@ -197,11 +221,32 @@ async def message_handler(message: Message, state: FSMContext):
     elif text == "📎📱Android":
         await message.answer(language['instr_vless_android'], disable_web_page_preview=True, parse_mode="HTML")
         await message.answer(language['instr_wireguard_rule'])
+    
     elif text == "📎📱IOS":
         await message.answer(language['instr_vless_ios'], disable_web_page_preview=True, reply_markup=get_ios_connection_links_kb(language), parse_mode="HTML")
+    
     elif text == "📎💻Windows/MacOS":
         await message.answer(language['instr_vless_mac_windows'], disable_web_page_preview=True, parse_mode="HTML")
         await message.answer(language['instr_wireguard_rule'])
+
+@dp.callback_query(lambda c: c.data == "give_test_key")
+async def give_test_key(callback_query: CallbackQuery, state: FSMContext):
+    if not await db.is_free_trial_used(callback_query.from_user.id):
+        language = LANG[await db.get_lang(callback_query.from_user.id)]
+        days_to_add = 7
+        data = {
+            "telegram_id": str(callback_query.from_user.id),
+            "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
+        }
+        create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
+        if create_user.status_code == 200:
+            await db.change_free_trial(callback_query.from_user.id)
+            await callback_query.message.answer(language['tx_how_install_after_pay'])
+            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
+        else:
+            await callback_query.message.answer('Sorry! Something gone wrong!')
+    else:
+        return
 
 @dp.callback_query(lambda c: c.data.startswith('language:'))
 async def change_language(callback_query: CallbackQuery, state: FSMContext):
@@ -209,7 +254,7 @@ async def change_language(callback_query: CallbackQuery, state: FSMContext):
     await db.change_lang(callback_query.from_user.id, language_to_change)
     language = LANG[await db.get_lang(callback_query.from_user.id)]
     await callback_query.message.delete()
-    await callback_query.message.answer(language['tx_yes_language'], reply_markup=get_start_1_kb(language))
+    await callback_query.message.answer(language['tx_yes_language'], reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
     await state.clear()
 
 @dp.callback_query(lambda c: c.data == "vpn_connect")
@@ -272,7 +317,12 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                         "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
                     }
                     create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
-
+                    if create_user.status_code == 200:
+                        await db.change_free_trial(callback_query.from_user.id)
+                        await callback_query.message.answer(language['tx_how_install_after_pay'])
+                        await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
+                    else:
+                        await callback_query.message.answer('Sorry! Something gone wrong!')
                     await state.clear()
                     return
                     
