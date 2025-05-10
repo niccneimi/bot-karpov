@@ -93,6 +93,8 @@ class Database:
             online_ips VARCHAR(255),
             expiration_date INTEGER,
             deleted INTEGER DEFAULT 0,
+            notified_2_days BOOLEAN DEFAULT FALSE,
+            notified_1_day BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );   
         """
@@ -361,3 +363,20 @@ class Database:
         async with self._pool.acquire() as conn:
             await conn.execute(sql, days, uuid)
 
+    async def get_all_keys_with_expiration(self):
+        sql = "SELECT DISTINCT uuid, telegram_id, expiration_date, notified_2_days, notified_1_day FROM clients_as_keys WHERE deleted = 0"
+        async with self._pool.acquire() as conn:
+            return await conn.fetch(sql)  
+        
+    async def mark_key_notified(self, uuid, day_notified):
+        allowed_columns = {"notified_2_days", "notified_1_day"}
+        if day_notified not in allowed_columns:
+            raise ValueError(f"Invalid column name: {day_notified}")
+        sql = f"UPDATE clients_as_keys SET {day_notified} = TRUE WHERE uuid = $1"
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, uuid)
+
+    async def unmark_key_notified(self, uuid):
+        sql = f"UPDATE clients_as_keys SET notified_2_days = FALSE, notified_1_day = FALSE WHERE uuid = $1"
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, uuid)

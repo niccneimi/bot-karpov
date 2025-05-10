@@ -172,7 +172,7 @@ async def message_handler(message: Message, state: FSMContext):
                 await message.answer(language['tx_how_install_after_pay'])
                 await message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(message.from_user.id)))
             else:
-                await message.answer('Sorry! Something gone wrong!')
+                await message.answer(language['tx_no_create_key'])
         else:
             return
         
@@ -244,7 +244,7 @@ async def give_test_key(callback_query: CallbackQuery, state: FSMContext):
             await callback_query.message.answer(language['tx_how_install_after_pay'])
             await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
         else:
-            await callback_query.message.answer('Sorry! Something gone wrong!')
+            await callback_query.message.answer(language['tx_no_create_key'])
     else:
         return
 
@@ -322,10 +322,11 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                                 "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
                             }
                         else:
-                            await callback_query.message.answer('Sorry! Something gone wrong!')
+                            await callback_query.message.answer(language['tx_no_create_key'])
                     else:
                         days_to_add = PRICE_TO_DAYS_DICT[str(price)]
                         await db.prodlit_expiration_date(prodlit_key, int(days_to_add)*86400)
+                        await db.unmark_key_notified(key)
                         keys = await db.get_all_client_keys(str(callback_query.from_user.id))
                         if len(keys) != 0:
                             for key, value in keys.items():
@@ -350,6 +351,43 @@ async def prodlit_client_key(callback_query: CallbackQuery, state: FSMContext):
     await state.set_state(buyConnection.selectValute)
     await callback_query.message.answer(language['tx_prodlt_tarif'], reply_markup=get_buy_days_kb(language))
 
+# Уведомления об истечении ключей
+async def notify_expiring_keys():
+    while True:
+        try:
+            now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+            all_keys = await db.get_all_keys_with_expiration()
+            for key in all_keys:
+                user_id = key['telegram_id']
+                expiration = key['expiration_date']
+                days_left = (expiration - now) // 86400
+                language = LANG[await db.get_lang(int(user_id))]
+
+                if days_left == 2 and not key.get('notified_2_days'):
+                    try:
+                        await bot.send_message(
+                            user_id,
+                            f"{language['tx_after_2_days']}\nhttp://91.84.111.102:8000/sub/{user_id}--{key['uuid']}",
+                            reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key['uuid']), key['uuid'])
+                        )
+                    except:
+                        pass
+                    await db.mark_key_notified(key['uuid'], 'notified_2_days')
+
+                if days_left == 1 and not key.get('notified_1_day'):
+                    try:
+                        await bot.send_message(
+                            user_id,
+                            f"{language['tx_tommorow']}\nhttp://91.84.111.102:8000/sub/{user_id}--{key['uuid']}",
+                            reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key['uuid']), key['uuid'])
+                        )
+                    except:
+                        pass
+                    await db.mark_key_notified(key['uuid'], 'notified_1_day')
+        except Exception as e:
+            logging.error(f"Error in notify_expiring_keys: {e}")
+        await asyncio.sleep(3600)
+
 #####################################################################
 
 
@@ -357,6 +395,7 @@ async def prodlit_client_key(callback_query: CallbackQuery, state: FSMContext):
 async def main():
     # await bot.delete_webhook(True)
     await db.create_pool()
+    asyncio.create_task(notify_expiring_keys()) 
     try:
         await dp.start_polling(bot,allowed_updates=["message", "inline_query", "callback_query"])
     finally:
