@@ -29,7 +29,7 @@ MANAGER_SERVER_HOST = '91.84.111.102'
 MANAGER_SERVER_PORT = '8081'
 
 PRICE_TO_DAYS_DICT = {
-    "5":30,
+    "0.01":30,
     "12":90,
     "22":180,
     "40":360

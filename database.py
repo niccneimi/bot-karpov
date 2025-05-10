@@ -2,6 +2,7 @@ import asyncpg
 from typing import Union
 import json
 from typing import Dict, List, Union
+from datetime import datetime
 
 def parse_json_str(value: Union[str, list]) -> list:
     return json.loads(value) if isinstance(value, str) else value
@@ -348,3 +349,15 @@ class Database:
             str(row['uuid']): parse_json_str(row['records']) 
             for row in rows
         }
+    
+    async def get_key_days_left(self, uuid):
+        sql = "SELECT expiration_date FROM clients_as_keys WHERE uuid = $1"
+        async with self._pool.acquire() as conn:
+            expiration_date = await conn.fetch(sql, uuid)
+        return (datetime.fromtimestamp(expiration_date[0]['expiration_date']) - datetime.now()).days
+        
+    async def prodlit_expiration_date(self, uuid, days):
+        sql = "UPDATE clients_as_keys SET expiration_date = expiration_date + $1 WHERE uuid = $2"
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, days, uuid)
+

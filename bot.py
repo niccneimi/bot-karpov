@@ -42,7 +42,7 @@ async def waiting_for_promocode(message: Message, state: FSMContext):
                 summ=data['price'],
                 currency=currency.upper()
             ), 
-            reply_markup=get_check_pay_kb(language, currency, data['price']), 
+            reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid')), 
             parse_mode="HTML"
         )
     await state.clear()
@@ -106,16 +106,17 @@ async def no_promocode(callback_query: CallbackQuery, state: FSMContext):
             summ=data['price'],
             currency=currency.upper()
         ), 
-        reply_markup=get_check_pay_kb(language, currency, data['price']), 
+        reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid')), 
         parse_mode="HTML"
     )
     await state.clear()
 
-@dp.callback_query(lambda c: c.data.startswith("valute:"),buyConnection.selectValute)
-async def choose_value(callback_query: CallbackQuery, state: FSMContext):
+@dp.callback_query(lambda c: c.data.startswith("valute:"), buyConnection.selectValute)
+async def choose_valute(callback_query: CallbackQuery, state: FSMContext):
     language = LANG[await db.get_lang(callback_query.from_user.id)]
     currency = callback_query.data.split(":")[1].upper()
     user_id = callback_query.from_user.id
+    data = await state.get_data()
     await state.update_data(valute=currency)
     
     address_data = await db.get_address_by_user_and_token(user_id, currency)
@@ -141,7 +142,6 @@ async def choose_value(callback_query: CallbackQuery, state: FSMContext):
 
 @dp.message()
 async def message_handler(message: Message, state: FSMContext):
-    await state.clear()
     text = message.text
     language = LANG[await db.get_lang(message.from_user.id)]
 
@@ -180,7 +180,7 @@ async def message_handler(message: Message, state: FSMContext):
         keys = await db.get_all_client_keys(str(message.from_user.id))
         if len(keys) != 0:
             for key, value in keys.items():
-                await message.answer(f"http://91.84.111.102:8000/sub/{message.from_user.id}--{key}")
+                await message.answer(f"http://91.84.111.102:8000/sub/{message.from_user.id}--{key}", reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key), key))
         else:
             await message.answer(language['tx_no_activ_keys'])
 
@@ -270,6 +270,7 @@ async def connect_by_inline_button(callback_query: CallbackQuery, state: FSMCont
 async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext):
     currency = callback_query.data.split(":")[1]
     price = callback_query.data.split(":")[2]
+    prodlit_key = callback_query.data.split(":")[3]
     user_id = callback_query.from_user.id
     language = LANG[await db.get_lang(user_id)]
     
@@ -277,6 +278,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
 
     address = address_data['address']
     confirmations, tx_data = request_transaction_info(address)
+
     
     if tx_data is not None:
         existing_tx = await db.get_transaction_by_txid_and_address(tx_data['hash'], address)
@@ -310,19 +312,24 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                     )
                     
                     await callback_query.message.answer(language['tx_how_install_after_pay'])
-
-                    days_to_add = PRICE_TO_DAYS_DICT[str(price)]
-                    data = {
-                        "telegram_id": str(callback_query.from_user.id),
-                        "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
-                    }
-                    create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
-                    if create_user.status_code == 200:
-                        await db.change_free_trial(callback_query.from_user.id)
-                        await callback_query.message.answer(language['tx_how_install_after_pay'])
-                        await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
+                    if prodlit_key == "0":
+                        create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
+                        if create_user.status_code == 200:
+                            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
+                            days_to_add = PRICE_TO_DAYS_DICT[str(price)]
+                            data = {
+                                "telegram_id": str(callback_query.from_user.id),
+                                "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
+                            }
+                        else:
+                            await callback_query.message.answer('Sorry! Something gone wrong!')
                     else:
-                        await callback_query.message.answer('Sorry! Something gone wrong!')
+                        days_to_add = PRICE_TO_DAYS_DICT[str(price)]
+                        await db.prodlit_expiration_date(prodlit_key, int(days_to_add)*86400)
+                        keys = await db.get_all_client_keys(str(callback_query.from_user.id))
+                        if len(keys) != 0:
+                            for key, value in keys.items():
+                                await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{callback_query.from_user.id}--{key}", reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key), key))
                     await state.clear()
                     return
                     
@@ -331,8 +338,18 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                 
     await callback_query.message.answer(
         language['transaction_not_found'],
-        reply_markup=get_check_pay_kb(language, currency, price)
+        reply_markup=get_check_pay_kb(language, currency, price, prodlit_key)
     )
+
+# Продление ключей
+@dp.callback_query(lambda c: c.data.startswith("prodlit_key_button"))
+async def prodlit_client_key(callback_query: CallbackQuery, state: FSMContext):
+    language = LANG[await db.get_lang(callback_query.from_user.id)]
+    key_uuid = callback_query.data.split('--')[1]
+    await state.update_data(key_uuid=key_uuid)
+    await state.set_state(buyConnection.selectValute)
+    await callback_query.message.answer(language['tx_prodlt_tarif'], reply_markup=get_buy_days_kb(language))
+
 #####################################################################
 
 

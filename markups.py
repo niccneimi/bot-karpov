@@ -1,5 +1,6 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from config import *
+from utils import dney
 
 def get_start_1_kb(language, free_trial_used):
     keyboard=[
@@ -191,11 +192,21 @@ def get_no_promo_kb(language):
     )
     return kb
 
-def get_check_pay_kb(language, currency, price):
+def get_check_pay_kb(language, currency, price, prodlit_key):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=language['but_check_pay'], callback_data=f"check_payment:{currency}:{price}")
+                InlineKeyboardButton(text=language['but_check_pay'], callback_data=f"check_payment:{currency}:{price}:{prodlit_key}")
+            ]
+        ]
+    )
+    return kb
+
+async def get_but_prodlit_key_kb(language, days_left, key):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=f"{language['but_prodlit_key']} ({days_left} {await dney(language, days_left)})", callback_data=f"prodlit_key_button--{key}")
             ]
         ]
     )

@@ -8,7 +8,7 @@ async def dney(language, day=0):
 
 def get_price_dict(language, button_text):
     PRICE_DICT = {
-        f"{language['but_1_month']} - 5.0$":5,
+        f"{language['but_1_month']} - 5.0$":0.01,
         f"{language['but_3_month']} - 12.0$":12,
         f"{language['but_6_month']} - 22.0$":22,
         f"{language['but_12_month']} - 40.0$":40
