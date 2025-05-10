@@ -170,7 +170,7 @@ async def message_handler(message: Message, state: FSMContext):
             if create_user.status_code == 200:
                 await db.change_free_trial(message.from_user.id)
                 await message.answer(language['tx_how_install_after_pay'])
-                await message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(message.from_user.id)))
+                await message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_devices_kb_after_pay(language))
             else:
                 await message.answer(language['tx_no_create_key'])
         else:
@@ -251,7 +251,7 @@ async def give_test_key(callback_query: CallbackQuery, state: FSMContext):
         if create_user.status_code == 200:
             await db.change_free_trial(callback_query.from_user.id)
             await callback_query.message.answer(language['tx_how_install_after_pay'])
-            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
+            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_devices_kb_after_pay(language))
         else:
             await callback_query.message.answer(language['tx_no_create_key'])
     else:
@@ -324,7 +324,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                     if prodlit_key == "0":
                         create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
                         if create_user.status_code == 200:
-                            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
+                            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_devices_kb_after_pay(language))
                             days_to_add = PRICE_TO_DAYS_DICT[str(price)]
                             data = {
                                 "telegram_id": str(callback_query.from_user.id),

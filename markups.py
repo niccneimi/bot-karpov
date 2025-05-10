@@ -96,6 +96,23 @@ def get_devices_kb(language):
     )
     return kb
 
+def get_devices_kb_after_pay(language):
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="📎📱Android"),
+                KeyboardButton(text="📎📱IOS"),
+                KeyboardButton(text="📎💻Windows/MacOS"),
+            ],
+            [
+                KeyboardButton(text=language['but_main'])
+            ]
+        ],
+        resize_keyboard=True,
+        selective=True
+    )
+    return kb
+
 def get_connect_kb(language):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
