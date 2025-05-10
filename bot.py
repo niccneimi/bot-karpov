@@ -229,6 +229,15 @@ async def message_handler(message: Message, state: FSMContext):
         await message.answer(language['instr_vless_mac_windows'], disable_web_page_preview=True, parse_mode="HTML")
         await message.answer(language['instr_wireguard_rule'])
 
+    # Политика конфиденциальности и пользовательское солгашение
+    elif text == language['but_user_agreement']:
+        klava = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=language['but_user_agreement'], url="https://admin.dpntg.online/configs/document/?slug=user_agreement")]])
+        await message.answer(language['but_pointer'], reply_markup=klava)
+
+    elif text == language['but_privacy_policy']:
+        klava = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=language['but_privacy_policy'], url="https://admin.dpntg.online/configs/document/?slug=privacy_policy")]])
+        await message.answer(language['but_pointer'], reply_markup=klava)
+
 @dp.callback_query(lambda c: c.data == "give_test_key")
 async def give_test_key(callback_query: CallbackQuery, state: FSMContext):
     if not await db.is_free_trial_used(callback_query.from_user.id):

@@ -14,6 +14,10 @@ def get_start_1_kb(language, free_trial_used):
         [
             KeyboardButton(text=language['but_change_language']),
             KeyboardButton(text=language['but_help'])
+        ],
+        [
+            KeyboardButton(text=language['but_user_agreement']),
+            KeyboardButton(text=language['but_privacy_policy'])
         ]
     ]
     if not free_trial_used:
