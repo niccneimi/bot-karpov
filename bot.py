@@ -26,23 +26,51 @@ db = Database(f'postgresql://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_H
 async def waiting_for_promocode(message: Message, state: FSMContext):
     check_result = check_promocode(message.text)
     language = LANG[await db.get_lang(message.from_user.id)]
+    data = await state.get_data()
+    address = data.get('payment_address')
+    currency = data.get('valute')
+    dexnet_discount=0
+    if currency == "DEXNET":
+        dexnet_discount = 20
     if check_result:
-        pass
+        if not await db.is_used_promocode_by_telegram_id(str(message.from_user.id), message.text):
+            await message.answer(language['tx_spec_url_yes'].format(discount=check_result['discount_percent']))
+            await db.add_promocode_used_by_telegram_id(str(message.from_user.id), message.text)
+            qr_image = get_qr_code_image(address=address)
+            await bot.send_photo(message.from_user.id, BufferedInputFile(qr_image.getvalue(), filename="qr.png"))
+            await message.answer(f"<code>{address}</code>", parse_mode="HTML")
+            await message.answer(
+                language['total_amount_payment'].format(
+                    summ=data['price']-data['price']*((check_result['discount_percent']+dexnet_discount)/100),
+                    currency=currency.upper()
+                ), 
+                reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid'), check_result['discount_percent']+dexnet_discount), 
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(language['tx_promo_is_activate'])
+            qr_image = get_qr_code_image(address=address)
+            await bot.send_photo(message.from_user.id, BufferedInputFile(qr_image.getvalue(), filename="qr.png"))
+            await message.answer(f"<code>{address}</code>", parse_mode="HTML")
+            await message.answer(
+                language['total_amount_payment'].format(
+                    summ=data['price']-data['price']*(dexnet_discount/100),
+                    currency=currency.upper()
+                ), 
+                reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid'), dexnet_discount), 
+                parse_mode="HTML"
+            )
     else:
-        data = await state.get_data()
         await message.answer(language['promocode_does_not_exist'])
-        address = data.get('payment_address')
-        currency = data.get('valute')
-        
         qr_image = get_qr_code_image(address=address)
         await bot.send_photo(message.from_user.id, BufferedInputFile(qr_image.getvalue(), filename="qr.png"))
         await message.answer(f"<code>{address}</code>", parse_mode="HTML")
         await message.answer(
             language['total_amount_payment'].format(
-                summ=data['price'],
+                summ=data['price']-data['price']*(dexnet_discount/100),
                 currency=currency.upper()
             ), 
-            reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid')), 
+            reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid'), dexnet_discount), 
             parse_mode="HTML"
         )
     await state.clear()
@@ -97,16 +125,19 @@ async def no_promocode(callback_query: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     address = data.get('payment_address')
     currency = data.get('valute')
+    dexnet_discount=0
+    if currency == "DEXNET":
+        dexnet_discount = 20
     
     qr_image = get_qr_code_image(address=address)
     await bot.send_photo(callback_query.from_user.id, BufferedInputFile(qr_image.getvalue(), filename="qr.png"))
     await callback_query.message.answer(f"<code>{address}</code>", parse_mode="HTML")
     await callback_query.message.answer(
         language['total_amount_payment'].format(
-            summ=data['price'],
+            summ=data['price']-data['price']*(dexnet_discount/100),
             currency=currency.upper()
         ), 
-        reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid')), 
+        reply_markup=get_check_pay_kb(language, currency, data['price'], 0 if not data.get('key_uuid') else data.get('key_uuid'), dexnet_discount), 
         parse_mode="HTML"
     )
     await state.clear()
@@ -278,8 +309,10 @@ async def connect_by_inline_button(callback_query: CallbackQuery, state: FSMCont
 @dp.callback_query(lambda c: c.data.startswith("check_payment"))
 async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext):
     currency = callback_query.data.split(":")[1]
-    price = callback_query.data.split(":")[2]
+    price = int(callback_query.data.split(":")[2])
     prodlit_key = callback_query.data.split(":")[3]
+    discount = int(callback_query.data.split(":")[4])
+    price_with_discount = price-price*(discount)
     user_id = callback_query.from_user.id
     language = LANG[await db.get_lang(user_id)]
     
@@ -311,7 +344,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                     paid=True,
                     status="Paid"
                 )
-                if Decimal(price) <= Decimal(tx_amount):
+                if Decimal(price_with_discount) <= Decimal(tx_amount):
                     await db.update_order_status(
                         user_id=user_id,
                         paid=True,
@@ -348,7 +381,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                 
     await callback_query.message.answer(
         language['transaction_not_found'],
-        reply_markup=get_check_pay_kb(language, currency, price, prodlit_key)
+        reply_markup=get_check_pay_kb(language, currency, price, prodlit_key, discount)
     )
 
 # Продление ключей

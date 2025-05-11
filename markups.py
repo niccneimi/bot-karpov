@@ -213,11 +213,11 @@ def get_no_promo_kb(language):
     )
     return kb
 
-def get_check_pay_kb(language, currency, price, prodlit_key):
+def get_check_pay_kb(language, currency, price, prodlit_key, discount):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=language['but_check_pay'], callback_data=f"check_payment:{currency}:{price}:{prodlit_key}")
+                InlineKeyboardButton(text=language['but_check_pay'], callback_data=f"check_payment:{currency}:{price}:{prodlit_key}:{discount}")
             ]
         ]
     )

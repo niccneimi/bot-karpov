@@ -96,7 +96,13 @@ class Database:
             notified_2_days BOOLEAN DEFAULT FALSE,
             notified_1_day BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );   
+        );  
+
+        CREATE TABLE IF NOT EXISTS used_promocodes (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255),
+            promocode VARCHAR(255)
+        );
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql)
@@ -380,3 +386,13 @@ class Database:
         sql = f"UPDATE clients_as_keys SET notified_2_days = FALSE, notified_1_day = FALSE WHERE uuid = $1"
         async with self._pool.acquire() as conn:
             await conn.execute(sql, uuid)
+
+    async def is_used_promocode_by_telegram_id(self, user_id, promocode):
+        sql = "SELECT EXISTS(SELECT 1 FROM used_promocodes WHERE user_id = $1 AND promocode = $2)"
+        async with self._pool.acquire() as conn:
+            return await conn.fetchval(sql, user_id, promocode)
+        
+    async def add_promocode_used_by_telegram_id(self, user_id, promocode):
+        sql = "INSERT INTO used_promocodes (user_id, promocode) VALUES ($1, $2)"
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, user_id, promocode)
