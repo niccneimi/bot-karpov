@@ -2,6 +2,16 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardBut
 from config import *
 from utils import dney
 
+async def get_prodl_new_kb(language, keys):
+    inline_keyboard=[]
+    for el in keys:
+        inline_keyboard.append([InlineKeyboardButton(text=f'{el[0][:8]} ({el[1]} {await dney(language, el[1])})', callback_data=f"prodlit_key_button--{el[0]}")])
+    inline_keyboard.append([InlineKeyboardButton(text=language['but_new_key'], callback_data="vpn_connect")])
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=inline_keyboard
+    )
+    return kb
+
 def get_start_1_kb(language, free_trial_used):
     keyboard=[
         [
@@ -33,7 +43,7 @@ def get_start_1_kb(language, free_trial_used):
 def get_start_2_kb(language, free_trial_used):
     inline_keyboard=[
         [
-            InlineKeyboardButton(text=language['but_connect'], callback_data="vpn_connect")
+            InlineKeyboardButton(text=language['but_connect'], callback_data="but_connect")
         ],
         [
             InlineKeyboardButton(text=language['but_desription'].format(name_config=NAME_VPN_CONFIG), callback_data="bot_description")

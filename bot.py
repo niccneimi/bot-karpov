@@ -177,7 +177,7 @@ async def message_handler(message: Message, state: FSMContext):
     text = message.text
     language = LANG[await db.get_lang(message.from_user.id)]
 
-    if text == language['but_connect']:
+    if text == language['but_new_key']:
         language = LANG[await db.get_lang(message.from_user.id)]
         if not await db.is_free_trial_used(message.from_user.id):
             probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
@@ -185,8 +185,23 @@ async def message_handler(message: Message, state: FSMContext):
             probniy = ''
         await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
 
+    elif text == language['but_connect']:
+        keys_from_db = await db.get_all_client_keys(str(message.from_user.id))
+        keys = []
+        if len(keys_from_db) != 0:
+            for key, value in keys_from_db.items():
+                keys.append((key, await db.get_key_days_left(key)))
+            await message.answer(language['tx_buy'].format(name=message.from_user.first_name), reply_markup=await get_prodl_new_kb(language, keys))
+        else:
+            if not await db.is_free_trial_used(message.from_user.id):
+                probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
+            else:
+                probniy = ''
+            await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+
+
     elif text in [f"{language['but_1_month']} - 5.0$", f"{language['but_3_month']} - 12.0$", f"{language['but_6_month']} - 22.0$", f"{language['but_12_month']} - 40.0$"]:
-        tmp_msg = await message.answer(language['tx_wait'],reply_markup=get_but_main_kb(language))
+        await message.answer(language['tx_wait'],reply_markup=get_but_main_kb(language))
         await message.answer(language['tx_select_currency'], reply_markup=get_select_valute_kb())
         await state.set_state(buyConnection.selectValute)
         await state.update_data(price=get_price_dict(language, text))
@@ -298,6 +313,23 @@ async def change_language(callback_query: CallbackQuery, state: FSMContext):
     await callback_query.message.delete()
     await callback_query.message.answer(language['tx_yes_language'], reply_markup=get_start_1_kb(language, await db.is_free_trial_used(callback_query.from_user.id)))
     await state.clear()
+
+@dp.callback_query(lambda c: c.data == "but_connect")
+async def but_connect_handler(callback_query: CallbackQuery, state: FSMContext):
+    language = LANG[await db.get_lang(callback_query.from_user.id)]
+    keys_from_db = await db.get_all_client_keys(str(callback_query.from_user.id))
+    keys = []
+    if len(keys_from_db) != 0:
+        for key, value in keys_from_db.items():
+            keys.append((key, await db.get_key_days_left(key)))
+        await callback_query.message.answer(language['tx_buy'].format(name=callback_query.from_user.first_name), reply_markup=await get_prodl_new_kb(language, keys))
+    else:
+        if not await db.is_free_trial_used(callback_query.from_user.id):
+            probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
+        else:
+            probniy = ''
+        await callback_query.message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+
 
 @dp.callback_query(lambda c: c.data == "vpn_connect")
 async def connect_by_inline_button(callback_query: CallbackQuery, state: FSMContext):
