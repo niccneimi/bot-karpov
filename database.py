@@ -64,6 +64,9 @@ class Database:
             amount DECIMAL(20, 8) NOT NULL,
             currency VARCHAR(10) NOT NULL,
             paid BOOLEAN DEFAULT FALSE,
+            package_size INTEGER,
+            promocode_used BOOLEAN,
+            expiration_date INTEGER,
             extra JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -176,6 +179,11 @@ class Database:
             await conn.execute(sql, txid, transaction_type, confirmations, token,
                              amount, from_address, standart, user_crypto_address_id,
                              address, paid, status)
+    
+    async def create_order(self, user_id: int, paid: bool, extra: dict, currency: str, amount, package_size, promocode_used, expiration_date):
+        sql = """INSERT INTO orders (user_id, paid, extra, currency, amount, package_size, promocode_used, expiration_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"""
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, user_id, paid, json.dumps(extra), currency, amount, package_size, promocode_used, expiration_date)
 
     async def update_order_status(self, user_id: int, paid: bool, extra: dict):
         sql = """
@@ -368,6 +376,7 @@ class Database:
         sql = "UPDATE clients_as_keys SET expiration_date = expiration_date + $1 WHERE uuid = $2"
         async with self._pool.acquire() as conn:
             await conn.execute(sql, days, uuid)
+            return await conn.fetch("SELECT expiration_date FROM clients_as_keys WHERE uuid = $1", uuid)
 
     async def get_all_keys_with_expiration(self):
         sql = "SELECT DISTINCT uuid, telegram_id, expiration_date, notified_2_days, notified_1_day FROM clients_as_keys WHERE deleted = 0"
@@ -396,3 +405,8 @@ class Database:
         sql = "INSERT INTO used_promocodes (user_id, promocode) VALUES ($1, $2)"
         async with self._pool.acquire() as conn:
             await conn.execute(sql, user_id, promocode)
+
+    async def clear_uncreated_servers(self):
+        sql = "DELETE FROM servers WHERE created = 0"
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql)

@@ -107,13 +107,14 @@ async def buy_command(message: Message, state: FSMContext):
 
 @dp.message(Command("test_admin_add_client"))
 async def test(message: Message):
-    days_to_add = PRICE_TO_DAYS_DICT[str(5)]
-    data = {
-        "telegram_id": str(message.from_user.id),
-        "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
-    }
-    create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
-    print(create_user.content)
+    # days_to_add = PRICE_TO_DAYS_DICT[str(5)]
+    # data = {
+    #     "telegram_id": str(message.from_user.id),
+    #     "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
+    # }
+    # create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
+    r = await db.prodlit_expiration_date("755996ac-21ff-4d33-9a2f-a021da959463", int(1)*86400)
+    print(r[0]['expiration_date'])
 
 # #####################################################################
 
@@ -309,7 +310,7 @@ async def connect_by_inline_button(callback_query: CallbackQuery, state: FSMCont
 @dp.callback_query(lambda c: c.data.startswith("check_payment"))
 async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext):
     currency = callback_query.data.split(":")[1]
-    price = int(callback_query.data.split(":")[2])
+    price = Decimal(callback_query.data.split(":")[2])
     prodlit_key = callback_query.data.split(":")[3]
     discount = int(callback_query.data.split(":")[4])
     price_with_discount = price-price*(discount)
@@ -331,48 +332,56 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
             tx_amount = round(Decimal(tx_amount), 8)
 
             try:
-                await db.add_transaction(
-                    txid=tx_data['hash'],
-                    transaction_type="in",
-                    confirmations=confirmations,
-                    token=token,
-                    amount=str(tx_amount),
-                    from_address=tx_data['from'],
-                    standart="BEP20",
-                    user_crypto_address_id=address_data['id'],
-                    address=tx_data['to'],
-                    paid=True,
-                    status="Paid"
-                )
                 if Decimal(price_with_discount) <= Decimal(tx_amount):
-                    await db.update_order_status(
-                        user_id=user_id,
+                    await db.add_transaction(
+                        txid=tx_data['hash'],
+                        transaction_type="in" if prodlit_key == "0" else "prodlit",
+                        confirmations=confirmations,
+                        token=token,
+                        amount=str(tx_amount),
+                        from_address=tx_data['from'],
+                        standart="BEP20",
+                        user_crypto_address_id=address_data['id'],
+                        address=tx_data['to'],
                         paid=True,
-                        extra={
-                            "hash_tx": tx_data['hash']
-                        }
+                        status="Paid"
                     )
                     
-                    await callback_query.message.answer(language['tx_how_install_after_pay'])
+                    await callback_query.message.answer(language['tx_how_install_after_pay'], reply_markup=get_devices_kb_after_pay(language))
                     if prodlit_key == "0":
+                        days_to_add = PRICE_TO_DAYS_DICT[str(price)]
+                        data = {
+                            "telegram_id": str(callback_query.from_user.id),
+                            "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
+                        }
                         create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
                         if create_user.status_code == 200:
-                            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_devices_kb_after_pay(language))
-                            days_to_add = PRICE_TO_DAYS_DICT[str(price)]
-                            data = {
-                                "telegram_id": str(callback_query.from_user.id),
-                                "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
-                            }
+                            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}")
+                            expiration_date = create_user.json()['result'][0]['expiration_date']
                         else:
                             await callback_query.message.answer(language['tx_no_create_key'])
+                            return
                     else:
                         days_to_add = PRICE_TO_DAYS_DICT[str(price)]
-                        await db.prodlit_expiration_date(prodlit_key, int(days_to_add)*86400)
-                        await db.unmark_key_notified(key)
+                        r = await db.prodlit_expiration_date(prodlit_key, int(days_to_add)*86400)
+                        expiration_date = r[0]['expiration_date']
+                        await db.unmark_key_notified(prodlit_key)
                         keys = await db.get_all_client_keys(str(callback_query.from_user.id))
                         if len(keys) != 0:
                             for key, value in keys.items():
                                 await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{callback_query.from_user.id}--{key}", reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key), key))
+                    await db.create_order(
+                        user_id=user_id,
+                        paid=True,
+                        extra={
+                            "hash_tx": tx_data['hash']
+                        },
+                        currency=currency,
+                        amount = price_with_discount,
+                        package_size = int(PRICE_TO_DAYS_DICT[str(price)]),
+                        promocode_used = False if (discount == "0" or (discount == '20' and currency == "DEXNET")) else True,
+                        expiration_date = expiration_date
+                    )
                     await state.clear()
                     return
                     

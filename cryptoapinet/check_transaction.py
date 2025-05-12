@@ -25,7 +25,7 @@ def request_transaction_info(address: str):
     try:
         response = requests.get(url, params=params)
         tx_info = response.json()
-        print(f'qwe - {tx_info}')
+        # print(f'qwe - {tx_info}')
         if tx_info['status'] == "0":
             return 0, None
         
