@@ -544,7 +544,7 @@
     2️⃣Добавьте в приложение ключ, нажав на кнопку «{tx_install}»
   instr_2_0_desc_dop: 3️⃣Далее нажмите на три точки справа cверху, затем кнопку "Обновить подписку"
 
-  instr_wireguard_rule: Oдин ключ на 1 устройство❗️
+  instr_wireguard_rule: Oдин ключ на 3 устройства❗️
   instr_wireguard_android: |
     Инструкция для Android:
 
@@ -1195,7 +1195,7 @@ English:
     2️⃣Add the key to the app by clicking the “{tx_install}” button
   instr_2_0_desc_dop: 3️⃣Then click on the three dots in the top right corner, then the "Update subscription" button
 
-  instr_wireguard_rule: One key per device❗️
+  instr_wireguard_rule: One key per 3 devices❗️
   instr_wireguard_android: |
     Instructions for Android:
 
@@ -6311,7 +6311,7 @@ Français:
     2️⃣Додайте ключ до додатка, натиснувши кнопку «{tx_install}»
   instr_2_0_desc_dop: 3️⃣Далі натисніть на три крапки справа зверху, потім кнопку "Оновити підписку"
 
-  instr_wireguard_rule: Один ключ на 1 пристрій❗️
+  instr_wireguard_rule: Один ключ на 3 пристрій❗️
   instr_wireguard_android: |
     Інструкція для Android:
 
