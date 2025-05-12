@@ -213,6 +213,7 @@ async def message_handler(message: Message, state: FSMContext):
         if len(keys) != 0:
             for key, value in keys.items():
                 await message.answer(f"http://91.84.111.102:8000/sub/{message.from_user.id}--{key}", reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key), key))
+            await message.answer(language['tx_key_select_for_help'], reply_markup=get_devices_kb_after_pay(language))
         else:
             await message.answer(language['tx_no_activ_keys'])
 
