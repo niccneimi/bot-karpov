@@ -28,9 +28,6 @@ NICK_HELP = 'DexPN_Support_bot'
 MANAGER_SERVER_HOST = '91.84.111.102'
 MANAGER_SERVER_PORT = '8081'
 
-PRICE_TO_DAYS_DICT = {
-    "5":30,
-    "12":90,
-    "22":180,
-    "40":360
-}
+def get_price_to_days(tarifs, price):
+    PRICE_TO_DAYS_DICT = {tarif['price']: tarif['day'] for tarif in tarifs}
+    return PRICE_TO_DAYS_DICT[price]

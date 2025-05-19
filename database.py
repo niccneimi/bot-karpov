@@ -106,9 +106,22 @@ class Database:
             user_id VARCHAR(255),
             promocode VARCHAR(255)
         );
+
+        CREATE TABLE IF NOT EXISTS tarifs (
+            id SERIAL PRIMARY KEY,
+            price INTEGER,
+            days INTEGER
+        );
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql)
+
+    async def get_tarifs(self):
+        sql = "SELECT * FROM tarifs ORDER BY days ASC"
+        async with self._pool.acquire() as conn:
+            records = await conn.fetch(sql)
+            return [dict(record) for record in records]
+
 
     async def change_free_trial(self, user_id: int) -> None:
         sql = "UPDATE users SET free_trial_used = 1 WHERE user_id = $1"
@@ -210,6 +223,13 @@ class Database:
             sql = """UPDATE clients_as_keys SET deleted = 1 WHERE host = $1 AND expiration_date < EXTRACT(EPOCH FROM NOW())::bigint"""
             async with self._pool.acquire() as conn:
                 await conn.execute(sql, host)  
+
+    async def transfer_clients_change_clients_on_server(self, host, value):
+        sql = """
+        UPDATE servers SET clients_on_server = clients_on_server + $1 WHERE host = $2
+        """
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, value, host)
 
     async def add_crypto_address(self, user_id: int, token: str, standart: str, result: str, address_type: str):
         sql = """

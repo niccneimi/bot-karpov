@@ -180,16 +180,16 @@ def get_about_connect_kb(language):
     )
     return kb
 
-def get_buy_days_kb(language):
+async def get_buy_days_kb(language, tarifs):
     kb = ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text=f"{language['but_1_month']} - 5.0$"),
-                KeyboardButton(text=f"{language['but_3_month']} - 12.0$"),
-                KeyboardButton(text=f"{language['but_6_month']} - 22.0$")
+                KeyboardButton(text=f"🟡 {tarifs[0]['days']} {await dney(language, tarifs[0]['days'])} - {tarifs[0]['price']}$"),
+                KeyboardButton(text=f"🟢 {tarifs[1]['days']} {await dney(language, tarifs[1]['days'])} - {tarifs[1]['price']}$"),
+                KeyboardButton(text=f"🟢 {tarifs[2]['days']} {await dney(language, tarifs[2]['days'])} - {tarifs[2]['price']}$")
             ],
             [
-                KeyboardButton(text=f"{language['but_12_month']} - 40.0$")
+                KeyboardButton(text=f"🟣 {tarifs[3]['days']} {await dney(language, tarifs[3]['days'])} - {tarifs[3]['price']}$")
             ],
             [
                 KeyboardButton(text=language['but_main'])

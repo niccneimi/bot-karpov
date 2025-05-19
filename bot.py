@@ -103,7 +103,7 @@ async def buy_command(message: Message, state: FSMContext):
         probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
     else:
         probniy = ''
-    await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+    await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
 
 @dp.message(Command("test_admin_add_client"))
 async def test(message: Message):
@@ -183,7 +183,7 @@ async def message_handler(message: Message, state: FSMContext):
             probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
         else:
             probniy = ''
-        await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+        await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
 
     elif text == language['but_connect']:
         keys_from_db = await db.get_all_client_keys(str(message.from_user.id))
@@ -197,14 +197,14 @@ async def message_handler(message: Message, state: FSMContext):
                 probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
             else:
                 probniy = ''
-            await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+            await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
 
 
-    elif text in [f"{language['but_1_month']} - 5.0$", f"{language['but_3_month']} - 12.0$", f"{language['but_6_month']} - 22.0$", f"{language['but_12_month']} - 40.0$"]:
+    elif "🟣 " in text or "🟢 " in text or  "🟡 " in text:
         await message.answer(language['tx_wait'],reply_markup=get_but_main_kb(language))
         await message.answer(language['tx_select_currency'], reply_markup=get_select_valute_kb())
         await state.set_state(buyConnection.selectValute)
-        await state.update_data(price=get_price_dict(language, text))
+        await state.update_data(price=get_price_from_text(text))
 
     elif text == language['but_test_key']:
         if not await db.is_free_trial_used(message.from_user.id):
@@ -328,7 +328,7 @@ async def but_connect_handler(callback_query: CallbackQuery, state: FSMContext):
             probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
         else:
             probniy = ''
-        await callback_query.message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+        await callback_query.message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
 
 
 @dp.callback_query(lambda c: c.data == "vpn_connect")
@@ -338,7 +338,7 @@ async def connect_by_inline_button(callback_query: CallbackQuery, state: FSMCont
         probniy = '\n\n' + language['tx_buy_probniy'].format(days_trial=COUNT_DAYS_TRIAL, dney_text=await dney(language, COUNT_DAYS_TRIAL))
     else:
         probniy = ''
-    await callback_query.message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup=get_buy_days_kb(language))
+    await callback_query.message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
 
 @dp.callback_query(lambda c: c.data.startswith("check_payment"))
 async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext):
@@ -382,7 +382,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                     
                     await callback_query.message.answer(language['tx_how_install_after_pay'], reply_markup=get_devices_kb_after_pay(language))
                     if prodlit_key == "0":
-                        days_to_add = PRICE_TO_DAYS_DICT[str(price)]
+                        days_to_add = get_price_to_days(await db.get_tarifs(), str(price))
                         data = {
                             "telegram_id": str(callback_query.from_user.id),
                             "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
@@ -395,7 +395,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                             await callback_query.message.answer(language['tx_no_create_key'])
                             return
                     else:
-                        days_to_add = PRICE_TO_DAYS_DICT[str(price)]
+                        days_to_add = get_price_to_days(await db.get_tarifs(), str(price))
                         r = await db.prodlit_expiration_date(prodlit_key, int(days_to_add)*86400)
                         expiration_date = r[0]['expiration_date']
                         await db.unmark_key_notified(prodlit_key)
@@ -411,7 +411,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                         },
                         currency=currency,
                         amount = price_with_discount,
-                        package_size = int(PRICE_TO_DAYS_DICT[str(price)]),
+                        package_size = int(get_price_to_days(await db.get_tarifs(), str(price))),
                         promocode_used = False if (discount == "0" or (discount == '20' and currency == "DEXNET")) else True,
                         expiration_date = expiration_date
                     )
@@ -433,7 +433,7 @@ async def prodlit_client_key(callback_query: CallbackQuery, state: FSMContext):
     key_uuid = callback_query.data.split('--')[1]
     await state.update_data(key_uuid=key_uuid)
     await state.set_state(buyConnection.selectValute)
-    await callback_query.message.answer(language['tx_prodlt_tarif'], reply_markup=get_buy_days_kb(language))
+    await callback_query.message.answer(language['tx_prodlt_tarif'], reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
 
 # Уведомления об истечении ключей
 async def notify_expiring_keys():
