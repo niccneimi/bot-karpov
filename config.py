@@ -15,9 +15,9 @@ DATABASE_NAME = os.getenv("DATABASE_NAME")
 DATABASE_USERNAME = os.getenv("DATABASE_USERNAME")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
 
-CLIENT_CONFIG_PATH = "/home/niccneimi/Documents/FREELANCE/vpnbotlord_karpov13/bot/client_config_template.json"
+CLIENT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'client_config_template.json')
 
-LANG_FILE = 'bot/lang.yml'
+LANG_FILE = os.path.join(os.path.dirname(__file__), 'lang.yml')
 
 with open(LANG_FILE, 'r', encoding='utf-8') as f:
     LANG = yaml.safe_load(f)
