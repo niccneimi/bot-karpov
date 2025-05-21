@@ -299,7 +299,7 @@ async def give_test_key(callback_query: CallbackQuery, state: FSMContext):
         if create_user.status_code == 200:
             await db.change_free_trial(callback_query.from_user.id)
             await callback_query.message.answer(language['tx_how_install_after_pay'])
-            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_devices_kb_after_pay(language))
+            await callback_query.message.answer(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", reply_markup=get_devices_kb_after_pay(language))
         else:
             await callback_query.message.answer(language['tx_no_create_key'])
     else:
@@ -389,7 +389,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                         }
                         create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
                         if create_user.status_code == 200:
-                            await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}")
+                            await callback_query.message.answer(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}")
                             expiration_date = create_user.json()['result'][0]['expiration_date']
                         else:
                             await callback_query.message.answer(language['tx_no_create_key'])
@@ -402,7 +402,7 @@ async def check_payment_manual(callback_query: CallbackQuery, state: FSMContext)
                         keys = await db.get_all_client_keys(str(callback_query.from_user.id))
                         if len(keys) != 0:
                             for key, value in keys.items():
-                                await callback_query.message.answer(f"http://91.84.111.102:8000/sub/{callback_query.from_user.id}--{key}", reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key), key))
+                                await callback_query.message.answer(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{callback_query.from_user.id}--{key}", reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key), key))
                     await db.create_order(
                         user_id=user_id,
                         paid=True,
@@ -451,7 +451,7 @@ async def notify_expiring_keys():
                     try:
                         await bot.send_message(
                             user_id,
-                            f"{language['tx_after_2_days']}\nhttp://91.84.111.102:8000/sub/{user_id}--{key['uuid']}",
+                            f"{language['tx_after_2_days']}\nhttp://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{user_id}--{key['uuid']}",
                             reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key['uuid']), key['uuid'])
                         )
                     except:
@@ -462,7 +462,7 @@ async def notify_expiring_keys():
                     try:
                         await bot.send_message(
                             user_id,
-                            f"{language['tx_tommorow']}\nhttp://91.84.111.102:8000/sub/{user_id}--{key['uuid']}",
+                            f"{language['tx_tommorow']}\nhttp://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{user_id}--{key['uuid']}",
                             reply_markup=await get_but_prodlit_key_kb(language, await db.get_key_days_left(key['uuid']), key['uuid'])
                         )
                     except:
@@ -477,7 +477,7 @@ async def notify_expiring_keys():
 
 ##############################START##################################
 async def main():
-    # await bot.delete_webhook(True)
+    await bot.delete_webhook(True)
     await db.create_pool()
     asyncio.create_task(notify_expiring_keys()) 
     try:
