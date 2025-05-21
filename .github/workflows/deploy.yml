@@ -21,6 +21,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 91.84.111.102 >> ~/.ssh/known_hosts
 
       - name: Deploy to server
         run: |
