@@ -27,7 +27,7 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh -i ~/.ssh/id_ed25519 root@91.84.111.102 << 'EOF'
+          ssh -t -i ~/.ssh/id_ed25519 root@91.84.111.102 << 'EOF'
             if ! command -v docker &> /dev/null; then
               apt update
               apt install -y apt-transport-https ca-certificates curl software-properties-common
