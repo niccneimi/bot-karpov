@@ -24,14 +24,18 @@ def get_qr_code_image(address: str) -> BytesIO:
     """
     qr_link = f"{address}"
     
-    qr_code = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
-    qr_code.add_data(qr_link)
-    qr_code.make(fit=True)
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_link)
+    qr.make(fit=True)
 
-    img = qr_code.make_image(fill='black', back_color='white')
+    img = qr.make_image(fill_color="black", back_color="white")
     
-    virtual_file = BytesIO()
-    img.save(virtual_file, format='PNG')
-    virtual_file.seek(0)
+    img_io = BytesIO()
+    img.save(img_io)
 
-    return virtual_file
+    return img_io
