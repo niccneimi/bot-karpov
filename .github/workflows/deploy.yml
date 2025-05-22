@@ -19,15 +19,11 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 91.84.111.102 >> ~/.ssh/known_hosts
-
-      - name: Check SSH key
-        run: head -20 ~/.ssh/id_ed25519
-
+          ssh-keyscan -H 85.192.60.233 >> ~/.ssh/known_hosts
 
       - name: Deploy to server
         run: |
-          ssh -t -i ~/.ssh/id_ed25519 root@91.84.111.102 << 'EOF'
+          ssh -t -i ~/.ssh/id_ed25519 root@85.192.60.233 << 'EOF'
             if ! command -v docker &> /dev/null; then
               apt update
               apt install -y apt-transport-https ca-certificates curl software-properties-common
