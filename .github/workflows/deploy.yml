@@ -41,9 +41,9 @@ jobs:
             git reset --hard
             git pull origin master
 
-            if [ "$(docker ps -q -f name=bot-karpov)" ]; then
-              docker stop bot-karpov
-              docker rm bot-karpov
+            if [ "$(docker ps -a -q -f name=bot-karpov)" ]; then
+              docker stop bot-karpov || true
+              docker rm bot-karpov || true
             fi
 
             docker build -t bot-karpov .
