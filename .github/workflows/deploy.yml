@@ -47,5 +47,5 @@ jobs:
             fi
 
             docker build -t bot-karpov .
-            docker run -d --name bot-karpov bot-karpov
+            docker run -d --name bot-karpov --env-file /root/.env bot-karpov
           EOF
