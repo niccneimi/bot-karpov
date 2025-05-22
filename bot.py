@@ -10,7 +10,6 @@ from config import *
 from markups import *
 from utils import *
 from services.promocode import check_promocode
-from services.dexstore_code import AdminDPNClient
 from cryptoapinet.services import get_qr_code_image, get_payment_address
 from cryptoapinet.check_transaction import request_transaction_info
 from cryptoapinet.utils import get_currency_cryptoapinet_by_token
@@ -83,42 +82,7 @@ async def start(message: Message, state: FSMContext):
         await db.add_user(message.from_user.id)
         language = LANG[await db.get_lang(message.from_user.id)]
         await message.answer(language['tx_change_language'], reply_markup=get_languages_kb())
-    
     language = LANG[await db.get_lang(message.from_user.id)]
-    
-    start_params = message.text.split()
-    if len(start_params) > 1:
-        token = start_params[1]
-        request_data = {
-            "code": token
-        }
-        code_data, status_code = AdminDPNClient.check_code(request_data=request_data)
-        
-        if code_data.get("valid"):
-            days_to_add = 365
-            data = {
-                "telegram_id": str(message.from_user.id),
-                "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
-            }
-            
-            create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
-            
-            if create_user.status_code == 200:
-                activate_data = {
-                    "code": token,
-                    "telegram_id": message.from_user.id
-                }
-                AdminDPNClient.activate_code(request_data=activate_data)
-                
-                await message.answer(language['tx_successful_code'])
-                await message.answer(language['tx_how_install_after_pay'])
-                await message.answer(
-                    f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", 
-                    reply_markup=get_devices_kb_after_pay(language)
-                )
-            else:
-                await message.answer(language['tx_no_create_key'])
-    
     await message.answer(language['tx_hello'].format(name=message.from_user.first_name), reply_markup=get_start_1_kb(language, await db.is_free_trial_used(message.from_user.id)))
     await message.answer(language['tx_start'].format(name_config=NAME_VPN_CONFIG, 
                                                      but_1=language['but_connect'], 
