@@ -110,7 +110,7 @@ async def start(message: Message, state: FSMContext):
                 }
                 AdminDPNClient.activate_code(request_data=activate_data)
                 
-                await message.answer(language['tx_successful_code'])
+                await message.answer('Промокод успешно применён ✅')
                 await message.answer(language['tx_how_install_after_pay'])
                 await message.answer(
                     f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}", 
