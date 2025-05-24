@@ -30,6 +30,9 @@ NICK_HELP = 'DexPN_Support_bot'
 MANAGER_SERVER_HOST = os.getenv("MANAGER_SERVER_HOST")
 MANAGER_SERVER_PORT = os.getenv("MANAGER_SERVER_PORT")
 
+# Список ID администраторов бота
+ADMIN_IDS = [718802381]
+
 def get_price_to_days(tarifs, price):
     PRICE_TO_DAYS_DICT = {tarif['price']: tarif['day'] for tarif in tarifs}
     return PRICE_TO_DAYS_DICT[price]

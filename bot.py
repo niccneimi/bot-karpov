@@ -4,7 +4,7 @@ from aiogram.filters import CommandStart,Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from decimal import Decimal
-import asyncio, logging, json
+import asyncio, logging, json, re
 from FSM import *
 from config import *
 from markups import *
@@ -20,6 +20,10 @@ import requests, datetime
 bot = Bot(TOKEN)
 dp = Dispatcher()
 db = Database(f'postgresql://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}/{DATABASE_NAME}')
+
+# Состояния для работы с промокодами
+class PromoCodeStates:
+    ENTER_PROMOCODE = 'enter_promocode'
 
 #####################################################################
 
@@ -141,10 +145,150 @@ async def buy_command(message: Message, state: FSMContext):
         probniy = ''
     await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
 
-# #####################################################################
+@dp.message(Command("promo"))
+async def create_promocode_with_days(message: Message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS or await db.is_admin(user_id)
+    
+    if not is_admin:
+        await message.answer("У вас нет прав для использования этой команды.")
+        return
+    
+    command_parts = message.text.split()
+    if len(command_parts) != 2:
+        await message.answer("Неверный формат команды. Используйте: /promo X, где X - количество дней.")
+        return
+    
+    try:
+        days = int(command_parts[1])
+        if days <= 0:
+            await message.answer("Количество дней должно быть положительным числом.")
+            return
+    except ValueError:
+        await message.answer("Неверный формат количества дней. Укажите число.")
+        return
+    promo_code = generate_promo_code()
+    
+    success = await db.create_admin_promocode(promo_code, days, user_id)
+    
+    if success:
+        await message.answer(f"Промокод создан успешно!\n\nКод: <code>{promo_code}</code>\nДней: {days}\n\nЭтот промокод можно использовать один раз.", parse_mode="HTML")
+    else:
+        await message.answer("Ошибка при создании промокода. Попробуйте еще раз.")
 
+@dp.message(Command("promo_30"))
+async def create_promo_30_days(message: Message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS or await db.is_admin(user_id)
+    
+    if not is_admin:
+        await message.answer("У вас нет прав для использования этой команды.")
+        return
+    
+    promo_code = generate_promo_code()
+    success = await db.create_admin_promocode(promo_code, 30, user_id)
+    
+    if success:
+        await message.answer(f"Промокод создан успешно!\n\nКод: <code>{promo_code}</code>\nДней: 30\n\nЭтот промокод можно использовать один раз.", parse_mode="HTML")
+    else:
+        await message.answer("Ошибка при создании промокода. Попробуйте еще раз.")
 
-# ############################HANDLERS#################################
+@dp.message(Command("promo_90"))
+async def create_promo_90_days(message: Message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS or await db.is_admin(user_id)
+    
+    if not is_admin:
+        await message.answer("У вас нет прав для использования этой команды.")
+        return
+    
+    promo_code = generate_promo_code()
+    success = await db.create_admin_promocode(promo_code, 90, user_id)
+    
+    if success:
+        await message.answer(f"Промокод создан успешно!\n\nКод: <code>{promo_code}</code>\nДней: 90\n\nЭтот промокод можно использовать один раз.", parse_mode="HTML")
+    else:
+        await message.answer("Ошибка при создании промокода. Попробуйте еще раз.")
+
+@dp.message(Command("promo_180"))
+async def create_promo_180_days(message: Message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS or await db.is_admin(user_id)
+    
+    if not is_admin:
+        await message.answer("У вас нет прав для использования этой команды.")
+        return
+    promo_code = generate_promo_code()
+    success = await db.create_admin_promocode(promo_code, 180, user_id)
+    
+    if success:
+        await message.answer(f"Промокод создан успешно!\n\nКод: <code>{promo_code}</code>\nДней: 180\n\nЭтот промокод можно использовать один раз.", parse_mode="HTML")
+    else:
+        await message.answer("Ошибка при создании промокода. Попробуйте еще раз.")
+
+@dp.message(Command("promo_365"))
+async def create_promo_365_days(message: Message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS or await db.is_admin(user_id)
+    
+    if not is_admin:
+        await message.answer("У вас нет прав для использования этой команды.")
+        return
+    promo_code = generate_promo_code()
+    success = await db.create_admin_promocode(promo_code, 365, user_id)
+    
+    if success:
+        await message.answer(f"Промокод создан успешно!\n\nКод: <code>{promo_code}</code>\nДней: 365\n\nЭтот промокод можно использовать один раз.", parse_mode="HTML")
+    else:
+        await message.answer("Ошибка при создании промокода. Попробуйте еще раз.")
+
+@dp.message(Command("promocode"))
+async def activate_promocode(message: Message):
+    command_parts = message.text.split()
+    if len(command_parts) != 2:
+        await message.answer("Неверный формат команды. Используйте: /promocode КОД")
+        return
+    
+    promo_code = command_parts[1].strip().upper()
+    user_id = message.from_user.id
+    language = LANG[await db.get_lang(user_id)]
+    promocode_data = await db.get_admin_promocode(promo_code)
+    
+    if not promocode_data:
+        await message.answer("Промокод не найден или уже был использован.")
+        return
+    
+    if await db.is_used_promocode_by_telegram_id(str(user_id), promo_code):
+        await message.answer("Вы уже использовали этот промокод.")
+        return
+    days = promocode_data['days']
+    
+    try:
+        data = {
+            "telegram_id": str(user_id),
+            "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days)).timestamp())
+        }
+        
+        create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
+        
+        if create_user.status_code == 200:
+            await db.mark_admin_promocode_used(promo_code)
+            await db.add_promocode_used_by_telegram_id(str(user_id), promo_code)
+            await message.answer(f"Промокод успешно активирован! ✅\nВаша подписка на {days} дней активирована.")
+            
+            await message.answer(language['tx_how_install_after_pay'])
+            await message.answer(
+                f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/sub/{create_user.json()['result'][0]['telegram_id']}--{create_user.json()['result'][0]['uuid']}",
+                reply_markup=get_devices_kb_after_pay(language)
+            )
+        else:
+            await message.answer("Произошла ошибка при создании ключа. Пожалуйста, обратитесь к администратору.")
+    
+    except Exception as e:
+        logging.error(f"Error creating key with promocode: {str(e)}")
+        await message.answer("Произошла ошибка при активации промокода. Пожалуйста, попробуйте позже или обратитесь к администратору.")
+
+##############################HANDLERS#################################
 @dp.callback_query(lambda c: c.data == 'no_promocode', buyConnection.checkPromo)
 async def no_promocode(callback_query: CallbackQuery, state: FSMContext):
     language = LANG[await db.get_lang(callback_query.from_user.id)]

@@ -3,6 +3,7 @@ from typing import Union
 import json
 from typing import Dict, List, Union
 from datetime import datetime
+import logging
 
 def parse_json_str(value: Union[str, list]) -> list:
     return json.loads(value) if isinstance(value, str) else value
@@ -103,14 +104,31 @@ class Database:
 
         CREATE TABLE IF NOT EXISTS used_promocodes (
             id SERIAL PRIMARY KEY,
-            user_id VARCHAR(255),
-            promocode VARCHAR(255)
+            telegram_id TEXT,
+            promocode TEXT,
+            used_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(telegram_id, promocode)
         );
 
         CREATE TABLE IF NOT EXISTS tarifs (
             id SERIAL PRIMARY KEY,
             price INTEGER,
             days INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS admin_promocodes (
+            id SERIAL PRIMARY KEY,
+            code TEXT UNIQUE,
+            days INTEGER,
+            creator_id BIGINT,
+            used BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT UNIQUE,
+            added_at TIMESTAMP DEFAULT NOW()
         );
         """
         async with self._pool.acquire() as conn:
@@ -416,17 +434,85 @@ class Database:
         async with self._pool.acquire() as conn:
             await conn.execute(sql, uuid)
 
-    async def is_used_promocode_by_telegram_id(self, user_id, promocode):
-        sql = "SELECT EXISTS(SELECT 1 FROM used_promocodes WHERE user_id = $1 AND promocode = $2)"
-        async with self._pool.acquire() as conn:
-            return await conn.fetchval(sql, user_id, promocode)
-        
-    async def add_promocode_used_by_telegram_id(self, user_id, promocode):
-        sql = "INSERT INTO used_promocodes (user_id, promocode) VALUES ($1, $2)"
-        async with self._pool.acquire() as conn:
-            await conn.execute(sql, user_id, promocode)
+    async def is_used_promocode_by_telegram_id(self, telegram_id, promocode):
+        """Проверяет, использовал ли пользователь промокод"""
+        try:
+            query = "SELECT * FROM used_promocodes WHERE telegram_id = $1 AND promocode = $2"
+            async with self._pool.acquire() as conn:
+                result = await conn.fetchrow(query, telegram_id, promocode)
+                return result is not None
+        except Exception as e:
+            logging.error(f"Error checking if promocode {promocode} was used by {telegram_id}: {str(e)}")
+            return True
+
+    async def add_promocode_used_by_telegram_id(self, telegram_id, promocode):
+        """Добавляет запись об использовании промокода пользователем"""
+        try:
+            query = "INSERT INTO used_promocodes (telegram_id, promocode) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+            async with self._pool.acquire() as conn:
+                await conn.execute(query, telegram_id, promocode)
+            return True
+        except Exception as e:
+            logging.error(f"Error adding used promocode {promocode} for {telegram_id}: {str(e)}")
+            return False
 
     async def clear_uncreated_servers(self):
         sql = "DELETE FROM servers WHERE created = 0"
         async with self._pool.acquire() as conn:
             await conn.execute(sql)
+
+    async def is_admin(self, user_id: int) -> bool:
+        sql = "SELECT EXISTS(SELECT 1 FROM admin_users WHERE user_id = $1)"
+        async with self._pool.acquire() as conn:
+            return await conn.fetchval(sql, user_id)
+    
+    async def create_admin_promocode(self, code: str, days: int, admin_id: int) -> bool:
+        sql = """
+        INSERT INTO admin_promocodes (code, days, created_by) 
+        VALUES ($1, $2, $3)
+        ON CONFLICT (code) DO NOTHING
+        RETURNING id
+        """
+        async with self._pool.acquire() as conn:
+            try:
+                result = await conn.fetchval(sql, code, days, admin_id)
+                return bool(result)
+            except Exception:
+                return False
+    
+    async def get_admin_promocode(self, code: str):
+        sql = """
+        SELECT * FROM admin_promocodes 
+        WHERE code = $1 AND is_used = FALSE
+        """
+        async with self._pool.acquire() as conn:
+            record = await conn.fetchrow(sql, code)
+            return dict(record) if record else None
+    
+    async def mark_admin_promocode_used(self, code: str):
+        sql = """
+        UPDATE admin_promocodes 
+        SET is_used = TRUE 
+        WHERE code = $1
+        """
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, code)
+    
+    async def is_admin_promocode_used(self, code: str) -> bool:
+        sql = "SELECT is_used FROM admin_promocodes WHERE code = $1"
+        async with self._pool.acquire() as conn:
+            return await conn.fetchval(sql, code) or False
+    
+    async def add_admin_user(self, user_id: int) -> bool:
+        sql = """
+        INSERT INTO admin_users (user_id)
+        VALUES ($1)
+        ON CONFLICT (user_id) DO NOTHING
+        RETURNING id
+        """
+        async with self._pool.acquire() as conn:
+            try:
+                result = await conn.fetchval(sql, user_id)
+                return bool(result)
+            except Exception:
+                return False
