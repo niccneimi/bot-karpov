@@ -128,10 +128,10 @@ class Database:
         async with self._pool.acquire() as conn:
             await conn.execute(sql, user_id)
 
-    async def add_user(self, user_id: int) -> None:
-        sql = "INSERT INTO users (user_id) VALUES ($1) ON CONFLICT DO NOTHING"
+    async def add_user(self, user_id: int, name: str) -> None:
+        sql = "INSERT INTO users (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING"
         async with self._pool.acquire() as conn:
-            await conn.execute(sql, user_id)
+            await conn.execute(sql, user_id, name)
 
     async def user_exists(self, user_id: int) -> bool:
         sql = "SELECT EXISTS(SELECT 1 FROM users WHERE user_id = $1)"

@@ -80,7 +80,7 @@ async def waiting_for_promocode(message: Message, state: FSMContext):
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     if not await db.user_exists(message.from_user.id):
-        await db.add_user(message.from_user.id)
+        await db.add_user(message.from_user.id, message.from_user.username)
         language = LANG[await db.get_lang(message.from_user.id)]
         await message.answer(language['tx_change_language'], reply_markup=get_languages_kb())
     
@@ -140,17 +140,6 @@ async def buy_command(message: Message, state: FSMContext):
     else:
         probniy = ''
     await message.answer(language['tx_buy_no_keys'].format(text_1=probniy, text_2=language['tx_prodlt_tarif']), reply_markup= await get_buy_days_kb(language, await db.get_tarifs()))
-
-@dp.message(Command("test_admin_add_client"))
-async def test(message: Message):
-    # days_to_add = PRICE_TO_DAYS_DICT[str(5)]
-    # data = {
-    #     "telegram_id": str(message.from_user.id),
-    #     "expiration_date": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_to_add)).timestamp())
-    # }
-    # create_user = requests.post(f"http://{MANAGER_SERVER_HOST}:{MANAGER_SERVER_PORT}/create_config", json=data)
-    r = await db.prodlit_expiration_date("755996ac-21ff-4d33-9a2f-a021da959463", int(1)*86400)
-    print(r[0]['expiration_date'])
 
 # #####################################################################
 
