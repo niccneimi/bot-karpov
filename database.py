@@ -468,7 +468,7 @@ class Database:
     
     async def create_admin_promocode(self, code: str, days: int, admin_id: int) -> bool:
         sql = """
-        INSERT INTO admin_promocodes (code, days, created_by) 
+        INSERT INTO admin_promocodes (code, days, creator_id) 
         VALUES ($1, $2, $3)
         ON CONFLICT (code) DO NOTHING
         RETURNING id
@@ -483,7 +483,7 @@ class Database:
     async def get_admin_promocode(self, code: str):
         sql = """
         SELECT * FROM admin_promocodes 
-        WHERE code = $1 AND is_used = FALSE
+        WHERE code = $1 AND used = FALSE
         """
         async with self._pool.acquire() as conn:
             record = await conn.fetchrow(sql, code)
@@ -492,14 +492,14 @@ class Database:
     async def mark_admin_promocode_used(self, code: str):
         sql = """
         UPDATE admin_promocodes 
-        SET is_used = TRUE 
+        SET used = TRUE 
         WHERE code = $1
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql, code)
     
     async def is_admin_promocode_used(self, code: str) -> bool:
-        sql = "SELECT is_used FROM admin_promocodes WHERE code = $1"
+        sql = "SELECT used FROM admin_promocodes WHERE code = $1"
         async with self._pool.acquire() as conn:
             return await conn.fetchval(sql, code) or False
     
